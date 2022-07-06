@@ -1,8 +1,9 @@
 #include "FileObject.h"
 #include <exception>
 
-FileObject::FileObject(const char* url):
-	m_url{ url }
+FileObject::FileObject(const char* url, const std::string& type):
+	m_url{ url },
+	m_type{ type }
 {
 	m_avFormatContext = avformat_alloc_context();
 	if (avformat_open_input(&m_avFormatContext, url, nullptr, nullptr)) {
@@ -22,20 +23,35 @@ void FileObject::ShowStreamInfo()
 	}
 	av_dump_format(m_avFormatContext, 0, m_url.c_str(), 0);
 
-	auto vstream = open_codec_context(&m_video_ctx, AVMEDIA_TYPE_VIDEO);
+	m_vstream_idx = open_codec_context(&m_video_ctx, AVMEDIA_TYPE_VIDEO);
 	
-	auto astream = open_codec_context(&m_audio_ctx, AVMEDIA_TYPE_AUDIO);
+	m_astream_idx = open_codec_context(&m_audio_ctx, AVMEDIA_TYPE_AUDIO);
 }
 
 void FileObject::ReadFrames()
 {
 	AVPacket* pkt = av_packet_alloc();
-	int cnt{ 0 };
+	int vcnt{ 0 }, acnt{ 0 };
 	while (av_read_frame(m_avFormatContext, pkt) >= 0) {
-		printf("[%d] [%d] pts: %lld, dts: %lld, duration: %lld, size: %d\n", 
-			cnt++, pkt->stream_index, pkt->pts, pkt->dts, pkt->duration, pkt->size);
-		
+		if (pkt->stream_index == m_vstream_idx) {
+			if ((m_type == "v" || m_type == "video") 
+				|| m_type.empty())
+			{
+				print_packet(pkt, vcnt++);
+			}
+		}
+		else if (pkt->stream_index == m_astream_idx) {
+			if ((m_type == "a" || m_type == "audio") 
+				|| m_type.empty())
+			{
+				print_packet(pkt, acnt++);
+			}
+		}
+
 		av_packet_unref(pkt);
+		if (vcnt >= 1000) {
+			break;
+		}
 	}
 	av_packet_free(&pkt);
 }
@@ -62,4 +78,10 @@ int FileObject::open_codec_context(AVCodecContext** dec_ctx, AVMediaType type)
 		throw std::exception("avcodec_open2 failed");
 	}
 	return stream_no;
+}
+
+void FileObject::print_packet(const AVPacket* pkt, int cnt)
+{
+	printf("[%d] [%d] pts: %lld, dts: %lld, duration: %lld, size: %d\n",
+		cnt, pkt->stream_index, pkt->pts, pkt->dts, pkt->duration, pkt->size);
 }

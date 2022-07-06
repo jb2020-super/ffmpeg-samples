@@ -4,20 +4,37 @@
 #include <iostream>
 #include "FileObject.h"
 
+void print_usage()
+{
+    printf("Usage: ffmpeg-samples.exe [file_name] [type].\n");
+}
+
 int main(int argc, char** argv)
 {
     try
     {
+        std::string type;
         const char* url{};
         if (argc >= 2) {
             url = argv[1];
+            if (argc >= 3) {                
+                type = argv[2];
+                if (!(type == "v" ||
+                    type == "video" ||
+                    type == "a" ||
+                    type == "audio"))
+                {
+                    print_usage();
+                    return 0;
+                }
+            }
         }
         else
         {
-            printf("Usage: ffmpeg-samples.exe [file_name].\n");
+            print_usage();
             return 0;
         }
-        FileObject obj(url);
+        FileObject obj(url, type);
         obj.ShowStreamInfo();
         obj.ReadFrames();
     }
